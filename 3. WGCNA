@@ -9,4 +9,20 @@ ko_rawcount<- read.csv('KO_log2RPKM.csv')
 #it requires to put samples as rows and genes as columns, so
 ko_rawcount_t<- as.data.frame(t(ko_rawcount))
 
+#2. network construction (auto version) ------------------------------------
+power<- c(c(1:10), seq(from=12, to=50, by=2))
+sft<- pickSoftThreshold(ko_rawcount_t, powerVector=power, verbose=5)
+sft.data<- sft$fitIndices
+
+#visualization to pick power
+a1<- ggplot(sft.data, aes(power, SFT.R.sq, label=power))+geom_point()+geom_text(nudge_y = 0.1)+geom_hline(yintercept = 0.8, color='red')+labs(x='power', y='scale free topology model fit, signed R^2')+theme_classic()
+a2<- ggplot(sft.data, aes(power, mean.k., label=power))+geom_point()+geom_text(nudge_y = 0.1)+labs(x='power', y='mean connectivity')+theme_classic()
+
+grid.arrange(a1, a2, nrow=2)
+
+soft_power<- 12
+
+#check if all the columns are numeric
+all(sapply(rawcount_t, is.numeric))
+ko_rawcount_t[]<- sapply(ko_rawcount_t, as.numeric)
 
