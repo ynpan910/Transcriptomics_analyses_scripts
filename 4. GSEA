@@ -1,1 +1,31 @@
+#GSEA can be done by the GSEA software, and it supports both standard version and prerank version. There are also mulitple available packages like limma and clusterProfiler.
+#here i use clusterProfiler do GSEA on pre-ranked genes.
+#you can rank your genes by moderate t stats or other formulas.
+
+library(clusterProfiler)
+library(ReactomePA)
+
+
+d<- read.csv('ranked.csv') #this is 16161 genes in a ranked order.
+geneNames<- mapIds(org.Mm.eg.db, keys = d$X, keytype = 'ENSEMBL', column = 'ENTREZID')
+
+d$entrez<- geneNames
+d<- d[!is.na(d$entrez),]
+entrezDupli<- d[duplicated(d$entrez)]
+d<- d[!duplicated(d$entrez), ]
+d<- d[, -1]    #to remove the genesymbol or gene ensemble column
+d<- d[, c(2, 1)]
+geneList<- d[, 2]
+names(geneList)<- as.character(d[,1])
+
+#GO enrichment
+ego3<- gseGO(geneList, OrgDb = org.Mm.eg.db)
+
+#KEGG enrichment
+kk2<- gseKEGG(geneList, organism = 'mmu')
+
+#Reactome pathway enrichment
+library(ReactomePA)
+y<- gsePathway(geneList)
+
 
