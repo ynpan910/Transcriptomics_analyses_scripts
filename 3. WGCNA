@@ -1,1 +1,12 @@
+#of note, all "rawcount' in the file represents log2RPKM.
+
+library(WGCNA)
+library(gridExtra)
+
+#1. formating input data------------------------------------
+ko_rawcount<- read.csv('KO_log2RPKM.csv')
+
+#it requires to put samples as rows and genes as columns, so
+ko_rawcount_t<- as.data.frame(t(ko_rawcount))
+
 
