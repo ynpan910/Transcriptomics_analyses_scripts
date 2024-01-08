@@ -1,4 +1,5 @@
 #of note, all "rawcount' in the file represents log2RPKM.
+#the workflow is following the WGCNA tutorials
 
 library(WGCNA)
 library(gridExtra)
@@ -8,6 +9,8 @@ ko_rawcount<- read.csv('KO_log2RPKM.csv')
 
 #it requires to put samples as rows and genes as columns, so
 ko_rawcount_t<- as.data.frame(t(ko_rawcount))
+
+
 
 #2. network construction (auto version) ------------------------------------------------------------------------------------------------------------
 power<- c(c(1:10), seq(from=12, to=50, by=2))
@@ -30,6 +33,8 @@ bwnet<- blockwiseModules(raw_count_t, maxBlockSize = 12000, networkType='unsigne
 
 module_eigengenes<- bwnet$MEs
 
+
+
 #3. get traits data------------------------------------------------------------------------------------------------------------
 
 metadata<- read.csv('KO_metadata.csv')
@@ -39,6 +44,8 @@ metadata <- metadata %>% column_to_rownames(var = 'Sample.Name')
 metadata$sex<- factor(metadata$sex, levels = c('F', 'M'), labels = c(0, 1))
 metadata$genotype<- factor(metadata$ genotype, levels = c('GFP', 'ApoE'), labels = c(0, 1))
 traits<- metadata
+
+
 
 #4. Relate modules to traits--------------------------------------------------------------------------------------------------
 lm_df<- merge(module_eigengenes, traits, by='row.names')
@@ -53,4 +60,54 @@ ko.lm<- lm(lm_df[, i]~genotype_bin+sex_bin, data = lm_df)
 corrcoef[i]<-summary(ko.lm)$coefficients['genotype_bin1', 'Estimate']
 pval[i]<-summary(ko.lm)$coefficients['genotype_bin1', 'Pr(>|t|)']}
 
+
+
 #5. Visualize modules – trait correlation as a heatmap--------------------------------------------------------------------------------------------------------------
+MEColors<- substring(names(module_eigengenes), 3)
+MEColorNames<- names(module_eigengenes)
+textMatrix<- paste(signif(corrcoef, 2), '(', signif(pval, 2), ')', sep = '')
+dim(corrcoef)<- c(24, 1) # 24 is the number of module eigengenes
+dim(textMatrix)<- dim(corrcoef)
+par(mar=c(5, 10, 3, 3))
+labeledHeatmap(Matrix = corrcoef, xLabels = 'Genotype', yLabels = MEColorNames, ySymbols=MEColorNames, colorLabels = FALSE, colors = blueWhiteRed(50), textMatrix = textMatrix, setStdMargins = FALSE, cex.text = 1.5, zlim=c(-1, 1), main='Module-genotype relationships', font.lab.x = 2, font.lab.y = 2, cex.lab = 1.5, xColorWidth=0.25, cex.main=1.5)
+
+
+#6. get the geneinfo table------------------------------------------------------------------------------------------------------------------------------------
+#6.1 calculate the module membership (MM) and the associated p-values
+module.membership.measure<- cor(module_eigengenes, ko_rawcount_t, use = 'p' )
+nSamples<- nrow(ko_rawcount_t)
+
+module.membership.measure.pvals<- corPvalueStudent(module.membership.measure, nSamples)
+module.membership.measure.pvals<- as.data.frame(t(module.membership.measure.pvals))
+
+module.membership.measure<- as.data.frame(t(module.membership.measure))
+
+MEColors<- substring(names(module_eigengenes), 3)
+
+names(module.membership.measure)<- paste('MM', MEColors, sep = '.')
+names(module.membership.measure.pvals)<- paste('p.MM', MEColors, sep = '.')
+
+
+#6.2 get the geneinfo table
+geneSymbol<- mapIds(org.Mm.eg.db, keys = rownames(raw_count), column = 'SYMBOL', keytype = 'ENSEMBL')
+
+geneInfo0<- data.frame(EnsembleID=rownames(raw_count),
+geneSymbol,
+LocusLinkID=allLLID,
+moduleColor=moduleColors,
+geneTraitSignificance,
+GSPvalue)
+
+modOrder<- order(-abs(corrcoef))
+
+for (mod in 1:ncol(module.membership.measure)) {
+oldNames<- names(geneInfo0)
+geneInfo0<- data.frame(geneInfo0, module.membership.measure[, modOrder[mod]],module.membership.measure.pvals[, modOrder[mod]])
+names(geneInfo0)<- c(oldNames, paste('MM.', MEColors[modOrder[mod]], sep = ''), paste('p.MM.', MEColors[modOrder[mod]], sep = ''))
+}
+
+geneOrder<- order(geneInfo0$moduleColor, -abs(geneInfo0$GS.genotype))
+geneInfo<- geneInfo0[geneOrder, ]
+
+#7. 
+
