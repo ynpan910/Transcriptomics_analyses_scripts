@@ -1,2 +1,10 @@
+#of note, in all the code, the'rawcount' represents log2RPKM values.
 ## use limma and edgeR
 
+#with rawcount and metadata,
+design<- model.matrix(~ genotype+sex+rin, data = metadata)
+fit<- lmFit(rawcount, design)
+fit<- eBayes(fit, trend=TRUE)
+
+#extract the DEG results by genotype
+deg_geno<- topTable(fit, n=Inf, coef = 2)
