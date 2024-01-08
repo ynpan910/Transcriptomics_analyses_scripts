@@ -3,13 +3,13 @@
 library(WGCNA)
 library(gridExtra)
 
-#1. formating input data------------------------------------
+#1. formating input data------------------------------------------------------------------------------------------------------------
 ko_rawcount<- read.csv('KO_log2RPKM.csv')
 
 #it requires to put samples as rows and genes as columns, so
 ko_rawcount_t<- as.data.frame(t(ko_rawcount))
 
-#2. network construction (auto version) ------------------------------------
+#2. network construction (auto version) ------------------------------------------------------------------------------------------------------------
 power<- c(c(1:10), seq(from=12, to=50, by=2))
 sft<- pickSoftThreshold(ko_rawcount_t, powerVector=power, verbose=5)
 sft.data<- sft$fitIndices
@@ -26,3 +26,31 @@ soft_power<- 12
 all(sapply(rawcount_t, is.numeric))
 ko_rawcount_t[]<- sapply(ko_rawcount_t, as.numeric)
 
+bwnet<- blockwiseModules(raw_count_t, maxBlockSize = 12000, networkType='unsigned', power=soft_power, mergeCutHeight = 0.4, minModuleSize = 60, numericLabels = FALSE, verbose = 3, corType='bicor')
+
+module_eigengenes<- bwnet$MEs
+
+#3. get traits data------------------------------------------------------------------------------------------------------------
+
+metadata<- read.csv('KO_metadata.csv')
+
+metadata <- metadata %>% column_to_rownames(var = 'Sample.Name')
+
+metadata$sex<- factor(metadata$sex, levels = c('F', 'M'), labels = c(0, 1))
+metadata$genotype<- factor(metadata$ genotype, levels = c('GFP', 'ApoE'), labels = c(0, 1))
+traits<- metadata
+
+#4. Relate modules to traits--------------------------------------------------------------------------------------------------
+lm_df<- merge(module_eigengenes, traits, by='row.names')
+lm_df<- lm_df %>% column_to_rownames(var = 'Row.names')
+
+# for loop to get correlation coefficient (b) and pvalue for all module_eigengene color
+corrcoef<- c()
+pval<- c()
+
+for (i in 1:24){              # 24 is the number of module eigengenes!
+ko.lm<- lm(lm_df[, i]~genotype_bin+sex_bin, data = lm_df)
+corrcoef[i]<-summary(ko.lm)$coefficients['genotype_bin1', 'Estimate']
+pval[i]<-summary(ko.lm)$coefficients['genotype_bin1', 'Pr(>|t|)']}
+
+#5. Visualize modules – trait correlation as a heatmap--------------------------------------------------------------------------------------------------------------
