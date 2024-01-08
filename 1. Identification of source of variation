@@ -1,3 +1,6 @@
+#of note, in all the code, the'rawcount' represents log2RPKM values.
+
+
 ##method 1: use mean F ratio (can be applied to both categorical and continuous variables)
 library(car)
 library(tidyverse)
