@@ -1,0 +1,46 @@
+#(this example is male samples)
+library(car)
+library(tidyverse)
+
+metadata_m<- metadata %>% subset(sex=='M')
+rawcount_m<- rawcount_all[, c("X21", "X22", "X23", "X24", "X17", "X18", "X13", "X14", "X15", "X16")]
+
+rawcount_m_t<- t(rawcount_m)
+#rawcount_m_t: samples on the row and genes in the column)
+
+idx<- match(rownames(rawcount_m_t), rownames(metadata_m))
+metadata_m<- metadata_m[idx, ]
+
+all(rownames(rawcount_m_t)==rownames(metadata_m))
+
+df<- merge(metadata_m, rawcount_m_t, by=0)
+
+#create vectors to save the value of F ratio for each gene
+geno_m<- c()
+sex_m<- c()
+rin_m<- c()
+
+#create for loops
+for (i in 1:16161) {
+ano<- aov(df[, i+3]~genotype+sex+rin, data = df)
+anovatable <- Anova(ano, type = 2)
+geno_m[i]<- anovatable[1, 'F value']
+sex_m[i]<- anovatable[2, 'F value']
+rin_m[i]<- anovatable[3, 'F value']
+}
+
+mean(geno_m)
+mean(sex_m)
+mean(rin_m)
+
+#create a bar chart to show the mean F-ratio for each factors (genotype, sex, RIN)
+
+mean_genotype_m<- mean(geno_m)
+mean_rin_m<- mean(rin_m)
+mean_sex_m<- mean(sex_m)
+
+sour_var<- data.frame('source'=c('Genotype', 'RIN', ‘Sex’, 'Error'), 'mean'=c(mean_genotype_m, mean_rin_m, mean_sex_m, 1))
+
+sour_var$source<- factor(sour_var$source, levels = sour_var$source[order(sour_var$mean, decreasing = TRUE)])
+
+ggplot(sour_var, aes(x=source, y=mean, fill=source))+geom_bar(stat = 'identity')+theme_classic()+labs(x='', y='Mean F Ratio', title = 'Sources of Variation')+scale_fill_manual(values = c('blue', 'red', 'yellow'))+geom_text(aes(label=round(mean, 2)), position = position_stack(vjust = 0.03), size=3)+theme(plot.title = element_text(hjust = 0.5, size = 8), legend.position = 'none')
