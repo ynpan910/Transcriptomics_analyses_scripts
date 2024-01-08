@@ -109,5 +109,18 @@ names(geneInfo0)<- c(oldNames, paste('MM.', MEColors[modOrder[mod]], sep = ''), 
 geneOrder<- order(geneInfo0$moduleColor, -abs(geneInfo0$GS.genotype))
 geneInfo<- geneInfo0[geneOrder, ]
 
-#7. 
+#7. Enrichment using anRichment package
+library(anRichment)
+
+GOcollection<- buildGOcollection(organism = 'mouse')
+moduleColors<- bwnet$colors
+
+allLLID<- mapIds(org.Mm.eg.db, keys = rownames(ko_rawcount), keytype = 'ENSEMBL', column = 'ENTREZID')
+
+GOenrichment<- enrichmentAnalysis(classLabels = moduleColors, identifiers = allLLID, refCollection = GOcollection, useBackground = 'given', threshold = 0.0001, thresholdType = 'Bonferroni', getOverlapEntrez = TRUE, getOverlapSymbols = TRUE, nBestDataSets = 50, ignoreLabels = 'grey')
+
+Anrichment_table<- as.data.frame(GOenrichment$enrichmentTable)
+write.csv(Anrichment_table, 'Anrichment_table.csv')
+
+
 
