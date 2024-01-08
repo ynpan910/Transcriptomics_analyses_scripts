@@ -1,4 +1,4 @@
-#(this example is male samples)
+##method 1: use mean F ratio (can be applied to both categorical and continuous variables)
 library(car)
 library(tidyverse)
 
@@ -44,3 +44,16 @@ sour_var<- data.frame('source'=c('Genotype', 'RIN', ‘Sex’, 'Error'), 'mean'=
 sour_var$source<- factor(sour_var$source, levels = sour_var$source[order(sour_var$mean, decreasing = TRUE)])
 
 ggplot(sour_var, aes(x=source, y=mean, fill=source))+geom_bar(stat = 'identity')+theme_classic()+labs(x='', y='Mean F Ratio', title = 'Sources of Variation')+scale_fill_manual(values = c('blue', 'red', 'yellow'))+geom_text(aes(label=round(mean, 2)), position = position_stack(vjust = 0.03), size=3)+theme(plot.title = element_text(hjust = 0.5, size = 8), legend.position = 'none')
+
+
+##method 2: use Glimma to draw interactive MDS plot (PCA) to identify source of variation (only works for categorical IV)
+library(edgeR)
+library(Glimma)
+library(limma)
+
+metadata$Sex<- factor(metadata$Sex)
+metadata$Group<- factor(metadata$Group)
+
+idx<- match(names(rawcount), rownames(metadata))
+
+glMDSPlot(rawcount, groups = metadata) #rawcount is log2RPKM
