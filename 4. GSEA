@@ -1,5 +1,5 @@
 #GSEA can be done by the GSEA software, and it supports both standard version and prerank version. There are also mulitple available packages like limma and clusterProfiler.
-#here i use clusterProfiler do GSEA on pre-ranked genes.
+#here i use clusterProfiler to do GSEA on pre-ranked genes.
 #you can rank your genes by moderate t stats or other formulas.
 
 library(clusterProfiler)
