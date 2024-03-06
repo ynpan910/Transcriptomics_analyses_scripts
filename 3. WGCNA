@@ -109,7 +109,7 @@ names(geneInfo0)<- c(oldNames, paste('MM.', MEColors[modOrder[mod]], sep = ''), 
 geneOrder<- order(geneInfo0$moduleColor, -abs(geneInfo0$GS.genotype))
 geneInfo<- geneInfo0[geneOrder, ]
 
-#7. Enrichment using anRichment package
+#7. Enrichment using anRichment package-------------------------------------------------------------------------------------------------------------------
 library(anRichment)
 
 GOcollection<- buildGOcollection(organism = 'mouse')
