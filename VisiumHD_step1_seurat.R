@@ -1,6 +1,3 @@
-setwd('/blue/qsong1/qsong1/sc_fastqs/Yining/VisiumHD_pipeline')
-
-
 library(Seurat)
 library(ggplot2)
 library(patchwork)
