@@ -1,0 +1,312 @@
+###############################################
+# The pipeline is learned from 
+# https://divingintogeneticsandgenomics.com/post/how-to-do-gene-correlation-for-single-cell-rnaseq-data-part-2-using-meta-cell/
+##############################################
+
+library(dplyr)
+library(Seurat)
+library(patchwork)
+library(ggplot2)
+library(ComplexHeatmap)
+library(SeuratData)
+library(hdWGCNA)
+library(WGCNA)
+library(scHOT)
+set.seed(1234)
+
+
+###############################################
+# prepare the data 
+##############################################
+
+#'------------------------------------------
+#'load snRNA data
+#'------------------------------------------
+
+
+#select interesting genes from TF result
+TF_result<- read.csv('500bp_regulons.csv')
+ig<- as.vector(TF_result$GENE...)
+ig<- ig[!is.na(ig)]
+
+
+#load in scRNA
+scRNAseq<- readRDS('seu.anno.rds')
+Idents(scRNAseq) ##CELL TYPE
+DefaultAssay(scRNAseq) ## "RNA"
+metadata<- scRNAseq@meta.data
+
+
+#'------------------------------------------
+#'some functions we will use
+#'------------------------------------------
+matrix_to_expression_df<- function(x, obj){
+  df<- x %>%
+    as.matrix() %>% 
+    as.data.frame() %>%
+    tibble::rownames_to_column(var= "gene") %>%
+    tidyr::pivot_longer(cols = -1, names_to = "cell", values_to = "expression") %>%
+    tidyr::pivot_wider(names_from = "gene", values_from = expression) %>%
+    left_join(obj@meta.data %>% 
+                tibble::rownames_to_column(var = "cell"))
+  return(df)
+}
+
+
+get_expression_data<- function(obj, assay = "RNA", slot = "data", 
+                               genes = NULL, cells = NULL){
+  if (is.null(genes) & !is.null(cells)){
+    df<- GetAssayData(obj, assay = assay, slot = slot)[, cells, drop = FALSE] %>%
+      matrix_to_expression_df(obj = obj)
+  } else if (!is.null(genes) & is.null(cells)){
+    df <- GetAssayData(obj, assay = assay, slot = slot)[genes, , drop = FALSE] %>%
+      matrix_to_expression_df(obj = obj)
+  } else if (is.null(genes & is.null(cells))){
+    df <- GetAssayData(obj, assay = assay, slot = slot)[, , drop = FALSE] %>%
+      matrix_to_expression_df(obj = obj)
+  } else {
+    df<- GetAssayData(obj, assay = assay, slot = slot)[genes, cells, drop = FALSE] %>%
+      matrix_to_expression_df(obj = obj)
+  }
+  return(df)
+}
+
+
+
+
+###################################################################
+# method 1: conventional gene correlation tests by Pearson's
+##################################################################
+
+gg_correlation<- data.frame(gene=NA,
+                            pearson_cor=NA,
+                            pearson_cor_pval=NA,
+                            weighted_Kendall_cor=NA,
+                            weighted_Spearman_cor=NA,
+                            cell_type_me=NA)
+
+for (gene in ig) {
+  genes<- c('GENE', gene)  ## gene is every gene in the ig vector, 'GENE' is the core gene i want to test, if any genes are related to it.
+  
+  # Get expression data
+  expression_data<- get_expression_data(scRNAseq, genes = genes)
+  
+  for (cell_type in cell_type_me) {
+    
+    #' pearson result
+    pearson_result <- cor.test(expression_data %>% filter(cell_type_me == cell_type) %>% pull(GENE), 
+                               expression_data %>% filter(cell_type_me == cell_type) %>% pull(gene))  
+    pearson_cor_pval<- pearson_result$p.value
+    pearson_cor<- pearson_result$estimate
+    
+    
+    #' zero-inflated kendal and spearman
+    GENE<- expression_data %>% 
+      filter(cell_type_me == cell_type) %>%
+      pull(GENE)
+    
+    gene_expr <- expression_data %>% 
+      filter(cell_type_me == cell_type) %>%
+      pull(gene)
+    
+    Kendall_cor <- scHOT::weightedZIKendall(GENE, gene_expr)
+    Spearman_cor <- scHOT::weightedSpearman(GENE, gene_expr)
+    
+    # Create a new row with the results
+    new_row <- data.frame(
+      gene = gene,
+      pearson_cor = pearson_cor,
+      pearson_cor_pval = pearson_cor_pval,
+      weighted_Kendall_cor = Kendall_cor,
+      weighted_Spearman_cor = Spearman_cor,
+      cell_type_me = cell_type)
+    
+    # Append the new row to the dataframe
+    gg_correlation <- rbind(gg_correlation, new_row)
+  }
+  
+}
+
+#remove the first row (which is initialized as NA)
+gg_correlation <- gg_correlation[-1, ]
+
+#padj
+gg_correlation$pearson_cor_padj<- p.adjust(gg_correlation$pearson_cor_pval)
+gg_correlation_sig<- gg_correlation %>% filter(pearson_cor_padj<0.05)
+
+write.csv(gg_correlation,'gg_correlation_GENE_ab.csv')
+write.csv(gg_correlation_sig,'gg_correlation_sig_GENE_ab.csv')
+
+
+
+###############################################
+# method 2: hdWGCNA meta-cell
+##############################################
+
+
+#'------------------------------------------
+#' construct metacell
+#'------------------------------------------
+scRNAseq<- SetupForWGCNA(
+  scRNAseq,
+  gene_select = "fraction", # the gene selection approach
+  fraction = 0.05, # fraction of cells that a gene needs to be expressed in order to be included
+  wgcna_name = "ab_hdWGCNA" # the name of the hdWGCNA experiment
+)
+
+# construct metacells in each group.
+# choosing K is an art. 
+scRNAseq <- MetacellsByGroups(
+  seurat_obj = scRNAseq,
+  group.by = c("cell_type_me"), # specify the columns in seurat_obj@meta.data to group by
+  k = 10, # nearest-neighbors parameter
+  max_shared = 5, # maximum number of shared cells between two metacells
+  ident.group = 'cell_type_me' # set the Idents of the metacell seurat object
+)
+
+# normalize metacell expression matrix:
+scRNAseq <- NormalizeMetacells(scRNAseq)
+
+
+#'------------------------------------------------------
+#'routine processing for the meta-cell seurat object
+#'------------------------------------------------------
+# extract the metacell seurat object 
+scRNAseq_metacell <- GetMetacellObject(scRNAseq)
+
+scRNAseq_metacell <- scRNAseq_metacell %>%
+  NormalizeData(normalization.method = "LogNormalize", scale.factor = 10000) %>%
+  FindVariableFeatures(selection.method = "vst", nfeatures = 2000) %>%
+  ScaleData() %>%
+  RunPCA(verbose = FALSE) %>%
+  FindNeighbors(dims = 1:30, verbose = FALSE) %>%
+  FindClusters(resolution = 0.5, verbose = FALSE) %>%
+  RunUMAP(dims = 1:30, verbose = FALSE)
+
+Idents(scRNAseq_metacell)<- scRNAseq_metacell$cell_type_me
+
+p1<- DimPlot(scRNAseq, reduction = "umap.cca", label = TRUE, repel = TRUE) + 
+  ggtitle("single cell")
+
+p2<- DimPlot(scRNAseq_metacell, reduction = "umap", label = TRUE, repel = TRUE) + 
+  ggtitle("meta cell")
+
+p1 + p2
+
+
+#'------------------------------------------------------
+#'co-expression network analysis
+#'------------------------------------------------------
+scRNAseq<- SetDatExpr(
+  scRNAseq,
+  group_name = "DAM", # the name of the group of interest in the group.by column
+  group.by='cell_type_me', 
+  assay = 'RNA', # using RNA assay
+  slot= 'data',
+  layer = 'data',# using normalized data
+  use_metacells=TRUE
+)
+
+# Test different soft powers:
+# https://stackoverflow.com/questions/57467678/wgcna-sharing-namespaces-for-statistical-methods
+bicor = WGCNA::bicor
+scRNAseq <- TestSoftPowers(
+  scRNAseq,
+  networkType = 'signed' # you can also use "unsigned" or "signed hybrid"
+)
+
+
+# plot the results:
+plot_list <- PlotSoftPowers(scRNAseq)
+
+# assemble with patchwork
+wrap_plots(plot_list, ncol=2)
+
+
+# select soft_power at 10 and construct co-expression network:
+scRNAseq <- ConstructNetwork(
+  scRNAseq, soft_power=10,
+  setDatExpr=FALSE,
+  tom_name = 'ab', # name of the topoligical overlap matrix written to disk
+  overwrite_tom = TRUE
+)
+
+
+PlotDendrogram(scRNAseq, main='ab hdWGCNA Dendrogram')
+
+#'--------------------------------
+#' co-expression modules
+#'--------------------------------
+# get the module assignment table:
+modules <- GetModules(scRNAseq)
+modules %>% filter(gene_name == "GENE")
+modules %>% filter(gene_name == "STAT2")
+
+head(modules)
+
+#'--------------------------------
+#' check for some correlation for metacell
+#'--------------------------------
+g1<- 'GENE'
+g2<- ig[1]
+genes<- c(g1, g2)
+
+
+#Let’s see how it looks for single cell first:
+expression_data<- get_expression_data(scRNAseq, genes = c(g1,g2 ))
+
+p1<- ggplot(expression_data, aes(x= GENE, y = LAP3)) + 
+  #geom_smooth(method="lm") +
+  geom_point(size = 0.8) +
+  facet_wrap(~cell_type_me) +
+  ggpubr::stat_cor(method = "pearson")
+
+#then for metacell,
+p2<- ggplot(get_expression_data(scRNAseq_metacell, genes = genes), aes(x= GENE, y = LAP3)) + 
+  geom_smooth(method="lm") +
+  geom_point(size = 0.8) +
+  facet_wrap(~cell_type_me) +
+  ggpubr::stat_cor(method = "pearson")
+
+p1+p2
+
+
+
+#'---------------------------------------------
+#' out correlation for metacell for every gene
+#'---------------------------------------------
+cell_type_me1<- cell_type_me[cell_type_me!='IRM']
+gg_correlation$meta_cor<-NA 
+gg_correlation$meta_cor_pval<-NA         
+
+for (gene in ig) {
+  genes<- c('GENE', gene)
+  
+  # Get expression data
+  expression_data<- get_expression_data(scRNAseq_metacell, genes = genes)
+  
+  for (cell_type in cell_type_me1) {
+    
+    #' pearson result
+    pearson_result <- cor.test(expression_data %>% filter(cell_type_me == cell_type) %>% pull(GENE), 
+                               expression_data %>% filter(cell_type_me == cell_type) %>% pull(gene))  
+    meta_cor_pval<- pearson_result$p.value
+    meta_cor<- pearson_result$estimate
+    
+    
+    # Update the corresponding row in gg_correlation
+    gg_correlation$meta_cor[gg_correlation$gene == gene & gg_correlation$cell_type_me == cell_type] <- meta_cor
+    gg_correlation$meta_cor_pval[gg_correlation$gene == gene & gg_correlation$cell_type_me == cell_type] <- meta_cor_pval
+  }
+  
+}
+
+
+#padj
+gg_correlation$meta_cor_padj<- p.adjust(gg_correlation$meta_cor_pval)
+gg_correlation_meta_sig<- gg_correlation %>% filter(meta_cor_padj<0.05)
+
+write.csv(gg_correlation,'gg_correlation_GENE_ab.csv')
+write.csv(gg_correlation_meta_sig,'gg_correlation_meta_sig_GENE_ab.csv')
+
+
