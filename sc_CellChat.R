@@ -261,7 +261,9 @@ pdf('incoming_signaling patterns_sub.pdf', width = 14,height = 15)
 draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
 graphics.off()
 
-# LR pairs changes----------------------------------------------------------------------
+# LR pairs changes, 1. Identify dysfunctional signaling by comparing the communication probabities----------------------------------------------------------------------
+#' This method for identifying the upgulated and down-regulated signaling is perfomed by 
+#' comparing the communication probability between two datasets for each L-R pair and each pair of cell groups.
 
 ###venous--------------------
 gg1 <- netVisual_bubble(cellchat, sources.use = 1, targets.use = c(2:6), comparison = c(1, 2), max.dataset = 2, title.name = "Increased signaling in p56", angle.x = 45, remove.isolate = T)
@@ -283,7 +285,47 @@ pdf('ligand-pairs changes_venous_as_target.pdf', width = 14,height = 15)
 gg1 + gg2
 graphics.off()
 
+# LR pairs changes, 2. Identify dysfunctional signaling by DEGs--------------------------------------------------------------------------------------------------------------
+#' This alternative method is to identify the upgulated and down-regulated signaling ligand-receptor pairs based on the differential expression analysis (DEA). 
+#' Specifically, we perform differential expression analysis between two biological conditions (i.e., NL and LS) for each cell group, 
+#' and then obtain the upgulated and down-regulated signaling based on the fold change of ligands in the sender cells and receptors in the receiver cells.
+#' Of note, users may observe the same LR pairs appearing in both the up-regulated and down-regulated results due to the fact that DEA between conditions is performed for each cell group. 
+#' There is a param to allow users to perform DEA between conditions by ignoring cell group information
 
+
+pos.dataset = "ko"
+features.name = paste0(pos.dataset, ".merged")
+cellchat <- identifyOverExpressedGenes(cellchat, group.dataset = "datasets",
+                                       pos.dataset = pos.dataset, features.name = features.name, 
+                                       only.pos = FALSE, thresh.pc = 0.1, thresh.fc = 0.05,thresh.p = 0.05, group.DE.combined = FALSE) 
+
+# map the results of differential expression analysis onto the inferred cell-cell communications to easily manage/subset the ligand-receptor pairs of interest
+net <- netMappingDEG(cellchat, features.name = features.name, variable.all = TRUE)
+# extract the ligand-receptor pairs with upregulated ligands in ko
+net.up <- subsetCommunication(cellchat, net = net, datasets = "ko",ligand.logFC = 0.05, receptor.logFC = NULL)
+# extract the ligand-receptor pairs with upregulated ligands and upregulated receptors in wt, i.e.,downregulated in ko
+net.down <- subsetCommunication(cellchat, net = net, datasets = "wt",ligand.logFC = -0.05, receptor.logFC = NULL)
+
+gene.up <- extractGeneSubsetFromPair(net.up, cellchat)
+gene.down <- extractGeneSubsetFromPair(net.down, cellchat)
+
+# Chord diagram
+par(mfrow = c(1,2), xpd=TRUE)
+netVisual_chord_gene(object.list[[2]], sources.use = 1, targets.use = c(2:3), 
+                     slot.name = 'net', net = net.up, lab.cex = 0.8, small.gap = 3.5, 
+                     title.name = paste0("Up-regulated signaling in ", names(object.list)[2]),
+                     color.use = col.map)
+netVisual_chord_gene(object.list[[1]], sources.use = 1, targets.use = c(2:3), slot.name = 'net',
+                     net = net.down %>% filter(source == 'ExN1', target %in% c('ExN1', 'ExN2', 'ExN3')) %>% slice_head(n=50),  # here im just subsetting the net.down dataframe as the plot shows too many LRs
+                     lab.cex = 0.8, small.gap = 3.5, 
+                     title.name = paste0("Down-regulated signaling in ", names(object.list)[2]),
+                     color.use = col.map, show.legend = F)
+
+write.csv(net.down, 's192_LR_changes_DEG_net.down.csv')
+write.csv(net.up, 's192_LR_changes_DEG_net.up.csv')
+
+
+                                                                     
 ##explore LR pairs
 df.net.GFP <- subsetCommunication(cellChat.GFP)
 df.net.p56 <- subsetCommunication(cellChat.p56)
