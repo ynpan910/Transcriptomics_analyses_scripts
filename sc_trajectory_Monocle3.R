@@ -121,6 +121,9 @@ cds <- order_cells(cds, root_pr_nodes=get_earliest_principal_node(cds))
 #' OR just simply choose the cluster but not using the programming method by : root_cells = colnames(cds[, colData(cds)$cell_type_me=='HM']))
 
 
+# // trajectory analysis is now run done //
+
+
 #'----------------------------------------
 #' rough visualization
 #'----------------------------------------
@@ -177,9 +180,8 @@ graphics.off()
 
 
 
-#'----------------------------------------------------------
-#' show ig gene expressions change as a function of pseudotime
-#'----------------------------------------------------------
+# ------------- show ig gene expressions change as a function of pseudotime -------------#
+
 
 
 markers<- c( 'TMEM119', 'CD9')
@@ -341,3 +343,123 @@ plot_cells(cds,
            cell_size = 1)+
   scale_color_manual(values = col1)
 graphics.off()
+
+
+# ------------ horizontal barchart split by genotype ---------------
+library(ggpubr) 
+pseudotime(cds)
+cds$monocle3_pseudotime<- pseudotime(cds)
+data.pseudo<- as.data.frame(colData(cds))
+
+
+
+
+# l1
+l1<- data.pseudo %>% filter(cell_type_me %in% c('HM',  'HLA', 'CRM'))
+l1$genotype<- factor(l1$genotype, levels = c('KO', 'WT'))
+p<- ggplot(l1, aes(x = genotype, y = monocle3_pseudotime)) +
+  geom_jitter(aes(color = cell_type_me), width = 0.2, size = 1.5, alpha =1) +  
+  geom_boxplot(outlier.shape = NA, alpha = 0, width = 0.5, size = 1) + 
+  labs(x = "Genotype", y = "Pseudotime", color = "Cell type") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(face = "bold", color = "black", size = 12),
+    axis.title.x = element_text(size = 14, face = "bold", color = "black"),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 14, face = "bold", color = "black"),
+    legend.title = element_text(size = 14, face = "bold", color = "black"),
+    legend.text = element_text(size = 13, face = 'bold', color = 'black'),
+    legend.position = "right"
+  )+
+  coord_flip()+
+  guides(color = guide_legend(override.aes = list(size = 5)))+
+  scale_color_manual(values=c( 'HM' = '#1E79B4', 
+                                'HLA' =  '#FF7F0B',
+                               'CRM' =  '#DF156C',
+                              'WT'= '#54B07C', 
+                              'KO'= '#EE8432'))+
+  stat_compare_means(
+    comparisons = list(
+      c("WT", "KO")),
+    method = "t.test",
+    label = "p.format"  # or "p.format" to show actual p-value
+  )
+pdf('ipsc_trajectory_box_by_genotype_l1.pdf', width = 6,height = 4)
+p
+graphics.off()
+
+
+
+
+
+
+# l2
+l2<- data.pseudo %>% filter(cell_type_me %in% c('HM',  'IRM'))
+l2$genotype<- factor(l2$genotype, levels = c('KO', 'WT'))
+p<- ggplot(l2, aes(x = genotype, y = monocle3_pseudotime)) +
+  geom_jitter(aes(color = cell_type_me), width = 0.2, size = 1.5, alpha =1) +  
+  geom_boxplot(outlier.shape = NA, alpha = 0, width = 0.5, size = 1) + 
+  labs(x = "Genotype", y = "Pseudotime", color = "Cell type") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(face = "bold", color = "black", size = 12),
+    axis.title.x = element_text(size = 14, face = "bold", color = "black"),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 14, face = "bold", color = "black"),
+    legend.title = element_text(size = 14, face = "bold", color = "black"),
+    legend.text = element_text(size = 13, face = 'bold', color = 'black'),
+    legend.position = "right"
+  )+
+  coord_flip()+
+  guides(color = guide_legend(override.aes = list(size = 5)))+
+  scale_color_manual(values=c( 'HM' = '#1E79B4', 
+                               'IRM' =  '#D72626',
+                               'WT'= '#54B07C', 
+                               'KO'= '#EE8432'))+
+  stat_compare_means(
+    comparisons = list(
+      c("WT", "KO")),
+    method = "t.test",
+    label = "p.format"  # or "p.format" to show actual p-value
+  )
+pdf('ipsc_trajectory_box_by_genotype_l2.pdf', width = 6,height = 4)
+p
+graphics.off()
+
+
+
+
+# l3
+l3<- data.pseudo %>% filter(cell_type_me %in% c('HM',  'DAM'))
+l3$genotype<- factor(l3$genotype, levels = c('KO', 'WT'))
+p<- ggplot(l3, aes(x = genotype, y = monocle3_pseudotime)) +
+  geom_jitter(aes(color = cell_type_me), width = 0.2, size = 1.5, alpha =1) +  
+  geom_boxplot(outlier.shape = NA, alpha = 0, width = 0.5, size = 1) + 
+  labs(x = "Genotype", y = "Pseudotime", color = "Cell type") +
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(face = "bold", color = "black", size = 12),
+    axis.title.x = element_text(size = 14, face = "bold", color = "black"),
+    axis.text.y = element_text(size = 12, face = "bold", color = "black"),
+    axis.title.y = element_text(size = 14, face = "bold", color = "black"),
+    legend.title = element_text(size = 14, face = "bold", color = "black"),
+    legend.text = element_text(size = 13, face = 'bold', color = 'black'),
+    legend.position = "right"
+  )+
+  coord_flip()+
+  guides(color = guide_legend(override.aes = list(size = 5)))+
+  scale_color_manual(values=c( 'HM' = '#1E79B4', 
+                               'DAM' =   '#149759',
+                               'WT'= '#54B07C', 
+                               'KO'= '#EE8432'))+
+  stat_compare_means(
+    comparisons = list(
+      c("WT", "KO")),
+    method = "t.test",
+    label = "p.format"  # or "p.format" to show actual p-value
+  )
+pdf('ipsc_trajectory_box_by_genotype_l3.pdf', width = 6,height = 4)
+p
+graphics.off()
+
+
