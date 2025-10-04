@@ -151,7 +151,7 @@ plot_cells(cds,
            show_trajectory_graph = T,
            cell_size = 0.5)
 
-# ------------- cells ordered by monocle3 pseudotime using boxplot --------------#
+# ------------- cells ordered by monocle3 pseudotime using boxplot --------------
 pseudotime(cds)
 cds$monocle3_pseudotime<- pseudotime(cds)
 data.pseudo<- as.data.frame(colData(cds))
@@ -180,10 +180,7 @@ graphics.off()
 
 
 
-# ------------- show ig gene expressions change as a function of pseudotime -------------#
-
-
-
+# ------------- show ig gene expressions change as a function of pseudotime -------------
 markers<- c( 'TMEM119', 'CD9')
 
 for (gene in markers) {
@@ -193,10 +190,7 @@ for (gene in markers) {
   #graphics.off()
 }
 
-saveRDS(cds, 'ab_trajectory.rds')
-
-              
-
+             
        
                      
 #'-----------------------------
@@ -209,7 +203,7 @@ library(tidyverse)
 source('color.R')
 
 
-# --------- a customized function for plotting trajectory of genes with pseudotime -------------#
+# --------- a customized function for plotting trajectory of genes with pseudotime -------------
 source('monocle3_plot_gene_in_peudotime_zero.R')
 #' this customized function is to plot a 'cleaner' version of the original plot_gene_in_pseudotime function. 
 #' It keep the spline trajectory line but put all scattered points (cells) to be on y=0 axis. Therefore, the points (cells) on y=0 represents 'cell states' or 'cell tyeps'.
