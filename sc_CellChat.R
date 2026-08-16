@@ -198,9 +198,27 @@ netVisual_diffInteraction_noLabel <- function (object, comparison = c(1, 2), mea
 
 
 #bar charts showing #interactions & #intensities------------------------------------------
-gg1 <- compareInteractions(cellchat, show.legend = F, group = c(1,2))
-gg2 <- compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = "weight")
+pretty_bar <- function(p) {
+  p + 
+    scale_x_discrete(labels = c(GFP = 'AAV-GFP', P56 = 'AAV-p56')) + # change x axis labels shown
+    theme_classic(base_size = 16) +
+    theme(text = element_text(size = 16, face = 'bold', color = 'black'),
+          axis.text = element_text(size = 16, face = 'bold', color = 'black'),
+          axis.title = element_text(size = 16, face = 'bold', color = 'black'),
+          plot.title = element_text(size = 16, face = 'bold', hjust = 0.5, color = 'black'),
+          legend.position = 'none')
+}
+gg1 <- pretty_bar(compareInteractions(cellchat, show.legend = F, group = c(1,2), color.use = c('#54B07C', '#EE8432') ))
+gg2 <- pretty_bar(compareInteractions(cellchat, show.legend = F, group = c(1,2), measure = 'weight', color.use = c('#54B07C', '#EE8432') ))
+gg1$layers[[2]]$aes_params$size <- 6
+gg1$layers[[2]]$aes_params$fontface <- "bold"
+gg2$layers[[2]]$aes_params$size <- 6
+gg2$layers[[2]]$aes_params$fontface <- "bold"
+
+pdf('Ast_Mic_CellChat_barchart.pdf', width = 9, height = 5.5)
 gg1 + gg2
+graphics.off()
+
 
 
 #circle plots showing #interactions & #intensities----------------------
@@ -215,6 +233,7 @@ netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
 
 
 #CCI players-------------------------------------------------------------------
+##### format 1: original version, left panel is GFP, right panel is p56
 num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
 weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
 gg <- list()
@@ -236,54 +255,155 @@ patchwork::wrap_plots(plots = gg_modified)
 graphics.off()
 
 
-#Information workflow---------------------------------------------------------
-pdf('information_workflow_sub.pdf', width = 14,height = 8)
-print(rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE))
+##### format 2: only one panel, use different shapes to represent different condition groups
+num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
+weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
+ct_cols <- c(Ast = "#FFC739FF", Mic = "#FF666DFF") # manually assign colors to cell types
+gg <- list()
+for (i in 1:length(object.list)) {
+  gg[[i]] <- netAnalysis_signalingRole_scatter(object.list[[i]], color.use = ct_cols[levels(object.list[[i]]@idents)],
+                                               weight.MinMax = weight.MinMax, do.label = F)
+}
+scatter_df <- map_dfr(1:length(gg), function(i) {
+  d <- gg[[i]]$data
+  d$condition <- c(GFP = 'AAV-GFP', p56 = 'AAV-p56')[names(object.list)[i]]
+  d
+})
+scatter_df$condition <- factor(scatter_df$condition, levels = c('AAV-GFP', 'AAV-p56'))
+p <- ggplot(scatter_df, aes(x = x, y = y, color = labels, shape = condition, size = Count)) +
+  geom_point(alpha = 0.8, stroke = 1.5) +
+  scale_color_manual(values = ct_cols) +
+  scale_shape_manual(values = c(AAV-GFP = 16, AAV-p56 = 17)) +
+  scale_size_continuous(range = c(4, 10)) +
+  labs(x = 'Outgoing interaction strength', y = 'Incoming interaction strength',
+       color = 'Cell type', shape = 'Condition', size = 'Count') +
+  theme_classic(base_size = 16) +
+  theme(text = element_text(size = 16, face = 'bold', color = 'black'),
+        axis.text = element_text(size = 16, face = 'bold', color = 'black'),
+        axis.title = element_text(size = 16, face = 'bold', color = 'black'),
+        legend.text = element_text(size = 14, face = 'bold', color = 'black'),
+        legend.title = element_text(size = 14, face = 'bold', color = 'black'),
+        legend.position = 'right') +
+  guides(color = guide_legend(order = 1, override.aes = list(size = 6, shape = 16)),
+         shape = guide_legend(order = 2, override.aes = list(size = 6)))
+
+pdf('Ast_Mic_CellChat_major_cci_sub_players.pdf', height = 6, width = 7)
+p
 graphics.off()
+
+                                                                     
+#Information workflow---------------------------------------------------------
+gg0 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE,
+               color.use = c('#54B07C', '#EE8432'))
+lab_cols <- gg0$theme$axis.text.y$colour
+gg <- gg0 +
+  scale_fill_manual(values = c(GFP = '#54B07C', p56 = '#EE8432'), labels = c(GFP = 'AAV-GFP', p56 = 'AAV-p56')) +
+  scale_color_manual(values = c(GFP = '#54B07C', p56 = '#EE8432'), labels = c(GFP = 'AAV-GFP', p56 = 'AAV-p56')) +
+  theme(text = element_text(size = 16, face = 'bold', color = 'black'),
+        axis.text.x = element_text(size = 16, face = 'bold', color = 'black'),
+        axis.text.y = element_text(size = 14, face = 'bold', color = lab_cols),
+        axis.title = element_text(size = 16, face = 'bold', color = 'black'),
+        plot.title = element_text(size = 16, face = 'bold', hjust = 0.5, color = 'black'),
+        legend.text = element_text(size = 14, face = 'bold', color = 'black'),
+        legend.title = element_blank())
+
+pdf('Ast_Mic_CellChat_information_workflow.pdf', width = 8, height = 8)
+print(gg)
+graphics.off()
+
 
 
 #outgoing & incoming signaling patterns---------------------------------------------------------
 library(ComplexHeatmap)
 i = 1
 pathway.union <- union(object.list[[i]]@netP$pathways, object.list[[i+1]]@netP$pathways)
-ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]], pattern = "outgoing", signaling = pathway.union, title = names(object.list)[i], width = 5, height = 15)
-ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "outgoing", signaling = pathway.union, title = names(object.list)[i+1], width = 5, height = 15)
-pdf('outgoing_signaling patterns_sub.pdf', width = 14,height = 15)
+ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]], pattern = "outgoing", 
+                                        signaling = pathway.union, title = 'AAV-GFP', 
+                                        color.use = ct_cols[levels(object.list[[i]]@idents)], 
+                                        width = 10, height = 20, font.size = 14, font.size.title = 16)
+ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "outgoing", 
+                                        signaling = pathway.union, title = 'AAV-p56', 
+                                        color.use = ct_cols[levels(object.list[[i+1]]@idents)], 
+                                        width = 10, height = 20, font.size = 14, font.size.title = 16)
+ht1@row_names_param$gp$fontface <- 'bold'
+ht2@row_names_param$gp$fontface <- 'bold'
+ht1@column_names_param$gp <- gpar(fontsize = 16, fontface = 'bold')
+ht2@column_names_param$gp <- gpar(fontsize = 16, fontface = 'bold')
+ht1@column_title_param$gp <- gpar(fontsize = 18, fontface = 'bold')
+ht2@column_title_param$gp <- gpar(fontsize = 18, fontface = 'bold')
+pdf('cai28_Ast_Mic_CellChat_outgoing_signaling_patterns.pdf', width = 16,height = 16)
 draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
 graphics.off()
 
 
 i = 1
 pathway.union <- union(object.list[[i]]@netP$pathways, object.list[[i+1]]@netP$pathways)
-ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]],pattern = "incoming", signaling = pathway.union, title = names(object.list)[i], width = 5, height = 15)
-ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "incoming", signaling = pathway.union, title = names(object.list)[i+1], width = 5, height = 15)
-pdf('incoming_signaling patterns_sub.pdf', width = 14,height = 15)
+ht1 = netAnalysis_signalingRole_heatmap(object.list[[i]],pattern = "incoming", signaling = pathway.union, 
+                                        title = 'AAV-GFP', color.use = ct_cols[levels(object.list[[i]]@idents)], 
+                                        width = 10, height = 20, font.size = 14, font.size.title = 16)
+ht2 = netAnalysis_signalingRole_heatmap(object.list[[i+1]], pattern = "incoming", signaling = pathway.union, 
+                                        title = 'AAV-p56', color.use = ct_cols[levels(object.list[[i+1]]@idents)], 
+                                        width = 10, height = 20, font.size = 14, font.size.title = 16)
+ht1@row_names_param$gp$fontface <- 'bold'
+ht2@row_names_param$gp$fontface <- 'bold'
+ht1@column_names_param$gp <- gpar(fontsize = 16, fontface = 'bold')
+ht2@column_names_param$gp <- gpar(fontsize = 16, fontface = 'bold')
+ht1@column_title_param$gp <- gpar(fontsize = 18, fontface = 'bold')
+ht2@column_title_param$gp <- gpar(fontsize = 18, fontface = 'bold')
+pdf('cai28_Ast_Mic_CellChat_incoming_signaling_patterns.pdf', width = 16, height = 16)
 draw(ht1 + ht2, ht_gap = unit(0.5, "cm"))
 graphics.off()
+
+
+
+                                                                     
 
 # LR pairs changes, 1. Identify dysfunctional signaling by comparing the communication probabities----------------------------------------------------------------------
 #' This method for identifying the upgulated and down-regulated signaling is perfomed by 
 #' comparing the communication probability between two datasets for each L-R pair and each pair of cell groups.
 
-###venous--------------------
-gg1 <- netVisual_bubble(cellchat, sources.use = 1, targets.use = c(2:6), comparison = c(1, 2), max.dataset = 2, title.name = "Increased signaling in p56", angle.x = 45, remove.isolate = T)
-#> Comparing communications on a merged object
-gg2 <- netVisual_bubble(cellchat, sources.use = 1, targets.use = c(2:6),  comparison = c(1, 2), max.dataset = 1, title.name = "Decreased signaling in p56", angle.x = 45, remove.isolate = T)
-#> Comparing communications on a merged object
-
-pdf('ligand-pairs changes_venous_as_source.pdf', width = 14,height = 15)
+###Mic as source--------------------
+pretty_bubble <- function(p) {
+  x_cols <- p$theme$axis.text.x$colour
+  p + scale_x_discrete(labels = function(l) gsub('p56', 'AAV-p56', gsub('GFP', 'AAV-GFP', l))) +
+    theme(text = element_text(size = 16, face = 'bold', color = 'black'),
+          axis.text.x = element_text(size = 16, face = 'bold', color = x_cols, angle = 45, hjust = 1),
+          axis.text.y = element_text(size = 14, face = 'bold', color = 'black'),
+          axis.title = element_text(size = 16, face = 'bold', color = 'black'),
+          plot.title = element_text(size = 16, face = 'bold', hjust = 0.5, color = 'black'),
+          legend.text = element_text(size = 14, face = 'bold', color = 'black'),
+          legend.title = element_text(size = 14, face = 'bold', color = 'black'))
+}
+gg1 <- pretty_bubble(netVisual_bubble(cellchat, sources.use = 1, targets.use = c(2), 
+                                      comparison = c(1, 2), max.dataset = 2, 
+                                      title.name = "Increased signaling in AAV-p56", 
+                                      angle.x = 45, remove.isolate = T, dot.size.min = 4, dot.size.max = 10, 
+                                      color.text = c('#54B07C', '#EE8432')))
+gg2 <- pretty_bubble(netVisual_bubble(cellchat, sources.use = 1, targets.use = c(2),  comparison = c(1, 2), 
+                                      max.dataset = 1, title.name = "Decreased signaling in AAV-p56", 
+                                      angle.x = 45, remove.isolate = T, dot.size.min = 4, dot.size.max = 10,
+                                      color.text = c('#54B07C', '#EE8432')))
+pdf('Ast_Mic_CellChat_LRpairs_Mic_as_source.pdf', width = 12, height = 6)
 gg1 + gg2
 graphics.off()
 
 
-gg1 <- netVisual_bubble(cellchat, sources.use = c(2:6), targets.use = 1,  comparison = c(1, 2), max.dataset = 2, title.name = "Increased signaling in p56", angle.x = 45, remove.isolate = T)
-#> Comparing communications on a merged object
-gg2 <- netVisual_bubble(cellchat, sources.use = c(2:6), targets.use = 1,  comparison = c(1, 2), max.dataset = 1, title.name = "Decreased signaling in p56", angle.x = 45, remove.isolate = T)
-#> Comparing communications on a merged object
+###Mic as target--------------------
+gg1 <- pretty_bubble(netVisual_bubble(cellchat, sources.use = c(2), targets.use = 1,  comparison = c(1, 2), max.dataset = 2, 
+                                      title.name = "Increased signaling in AAV-p56", angle.x = 45, remove.isolate = T, 
+                                      dot.size.min = 4, dot.size.max = 10,
+                                      color.text = c('#54B07C', '#EE8432')))
+gg2 <- pretty_bubble(netVisual_bubble(cellchat, sources.use = c(2), targets.use = 1,  comparison = c(1, 2), max.dataset = 1, 
+                                      title.name = "Decreased signaling in AAV-p56", angle.x = 45, remove.isolate = T, 
+                                      dot.size.min = 4, dot.size.max = 10,
+                                      color.text = c('#54B07C', '#EE8432')))
 
-pdf('ligand-pairs changes_venous_as_target.pdf', width = 14,height = 15)
+pdf('Ast_Mic_CellChat_LRpairs_Mic_as_target.pdf', width = 12, height = 6)
 gg1 + gg2
 graphics.off()
+
+
+                       
 
 # LR pairs changes, 2. Identify dysfunctional signaling by DEGs--------------------------------------------------------------------------------------------------------------
 #' This alternative method is to identify the upgulated and down-regulated signaling ligand-receptor pairs based on the differential expression analysis (DEA). 
