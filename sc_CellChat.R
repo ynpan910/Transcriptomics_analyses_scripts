@@ -197,7 +197,7 @@ netVisual_diffInteraction_noLabel <- function (object, comparison = c(1, 2), mea
 }
 
 
-#bar charts showing #interactions & #intensities------------------------------------------
+#bar charts showing #interactions & #intensities-------------------------------------------------------------------------------------------------------------
 pretty_bar <- function(p) {
   p + 
     scale_x_discrete(labels = c(GFP = 'AAV-GFP', P56 = 'AAV-p56')) + # change x axis labels shown
@@ -214,14 +214,13 @@ gg1$layers[[2]]$aes_params$size <- 6
 gg1$layers[[2]]$aes_params$fontface <- "bold"
 gg2$layers[[2]]$aes_params$size <- 6
 gg2$layers[[2]]$aes_params$fontface <- "bold"
-
 pdf('Ast_Mic_CellChat_barchart.pdf', width = 9, height = 5.5)
 gg1 + gg2
 graphics.off()
 
 
 
-#circle plots showing #interactions & #intensities----------------------
+#circle plots showing #interactions & #intensities------------------------------------------------------------------------------------------------------------------------------------------------------------
 par(mfrow = c(1,2), xpd=TRUE)
 netVisual_diffInteraction_noLabel(cellchat, weight.scale = T)
 netVisual_diffInteraction_noLabel(cellchat, weight.scale = T, measure = "weight")
@@ -232,7 +231,8 @@ netVisual_diffInteraction(cellchat, weight.scale = T, measure = "weight")
 
 
 
-#CCI players-------------------------------------------------------------------
+#CCI players--------------------------------------------------------------------------------------------------------------------------------------
+
 ##### format 1: original version, left panel is GFP, right panel is p56
 num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
 weight.MinMax <- c(min(num.link), max(num.link)) # control the dot size in the different datasets
@@ -240,20 +240,18 @@ gg <- list()
 for (i in 1:length(object.list)) {
   gg[[i]] <- netAnalysis_signalingRole_scatter(object.list[[i]], title = names(object.list)[i], weight.MinMax = weight.MinMax, do.label = F)
 }
-
-
 x_limits <- c(min(sapply(gg, function(g) min(g$data$x))), max(sapply(gg, function(g) max(g$data$x))))
 y_limits <- c(min(sapply(gg, function(g) min(g$data$y))), max(sapply(gg, function(g) max(g$data$y))))
 gg_modified <- list()
-
 for (i in 1:length(gg)) {
   gg_modified[[i]] <- gg[[i]] + xlim(x_limits) + ylim(y_limits)
 }
-
 pdf('major_cci_sub_players.pdf',height=6, width=10)
 patchwork::wrap_plots(plots = gg_modified)
 graphics.off()
 
+
+                                                                     
 
 ##### format 2: only one panel, use different shapes to represent different condition groups
 num.link <- sapply(object.list, function(x) {rowSums(x@net$count) + colSums(x@net$count)-diag(x@net$count)})
@@ -286,13 +284,14 @@ p <- ggplot(scatter_df, aes(x = x, y = y, color = labels, shape = condition, siz
         legend.position = 'right') +
   guides(color = guide_legend(order = 1, override.aes = list(size = 6, shape = 16)),
          shape = guide_legend(order = 2, override.aes = list(size = 6)))
-
 pdf('Ast_Mic_CellChat_major_cci_sub_players.pdf', height = 6, width = 7)
 p
 graphics.off()
 
+
+
                                                                      
-#Information workflow---------------------------------------------------------
+#Information workflow-----------------------------------------------------------------------------------------------------------------------------------------------------------
 gg0 <- rankNet(cellchat, mode = "comparison", measure = "weight", sources.use = NULL, targets.use = NULL, stacked = F, do.stat = TRUE,
                color.use = c('#54B07C', '#EE8432'))
 lab_cols <- gg0$theme$axis.text.y$colour
@@ -306,14 +305,13 @@ gg <- gg0 +
         plot.title = element_text(size = 16, face = 'bold', hjust = 0.5, color = 'black'),
         legend.text = element_text(size = 14, face = 'bold', color = 'black'),
         legend.title = element_blank())
-
 pdf('Ast_Mic_CellChat_information_workflow.pdf', width = 8, height = 8)
 print(gg)
 graphics.off()
 
 
 
-#outgoing & incoming signaling patterns---------------------------------------------------------
+#outgoing & incoming signaling patterns------------------------------------------------------------------------------------------------------------------------------
 library(ComplexHeatmap)
 i = 1
 pathway.union <- union(object.list[[i]]@netP$pathways, object.list[[i+1]]@netP$pathways)
